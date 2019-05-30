@@ -1,6 +1,6 @@
-# NoHullsBarr
+# Endless-Space-Flight
 
-This is a college game project build. It is a 2D underwater RPG game team project written in JavaScript. I programmed the enemies AI, player movement and control, in game physical, tile set system, fish AI, and some of terrain generating.
+This is a simple side scrolling shooter I developed in JavaScript.
 
 ## How To Play
 
@@ -10,17 +10,9 @@ Download the files
 ```
 Step 2
 ```
-open default.html
+open Index.html
 ```
 Step 3
 ```
 Enjoy!
 ```
-
-## Authors
-
-* **Hiu-CHun Lo**
-* **Geoff Smith**
-* **Hiu-Chun Lo**
-* **Noah Davidson**
-* **Frank Friesen**
