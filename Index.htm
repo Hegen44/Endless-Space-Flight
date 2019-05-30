@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html><head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+
+  
+  
+
+  
+  
+  
+
+  
+
+  <script type="text/javascript" src="a_data/dummy.js"></script>
+
+  
+
+  
+
+  
+
+  
+    <link rel="stylesheet" type="text/css" href="a_data/result-light.css">
+  
+
+  
+
+  <style type="text/css">
+    
+  </style>
+
+  <title>Endless Space Flight v1.0 by hegen44</title>
+
+  
+    
+
+
+
+
+<script type="text/javascript">//<![CDATA[
+window.onload=function(){
+canvas = document.getElementById('helicopter');
+context = canvas.getContext('2d');
+canvas.setAttribute("tabindex", 0); // so that key will focus and respond to user input
+//var force = 0.2;
+//var push = false;
+var gspeed = 5;
+var started = false;
+var stars=[];
+var Over = true;
+
+var RIGHT_KEY_CODE=39;
+var LEFT_KEY_CODE=37;
+var UP_KEY_CODE=38;
+var DOWN_KEY_CODE=40;
+
+var score = 0;
+var highscore = localStorage.getItem("highscore");
+
+var keyPressed = {};
+keyPressed[RIGHT_KEY_CODE]=false;
+keyPressed[LEFT_KEY_CODE]=false;
+keyPressed[UP_KEY_CODE]=false;
+keyPressed[DOWN_KEY_CODE]=false;
+
+var cover = new Image();
+cover.src = "https://dl.dropbox.com/s/oc1gh7g77958gdf/Cover.png";
+
+var bgsnd = new Audio("https://dl.dropbox.com/s/dknh9k2lnsfckoy/POL-trial-and-error-short.wav");
+
+
+function Energy(x,y,width,height,color){
+	this.x=x;
+	this.y=y;
+	this.width=width;
+	this.height=height;
+	this.overheat = false;
+	this.color = color;
+	this.EWidth=0;
+  this.fired = false;
+
+	this.update = function(){
+   	if(this.fired && this.EWidth <=this.width){
+    	this.EWidth +=10;
+      var sndLasers = new Audio("https://dl.dropbox.com/s/tpb17tz3p8gzigq/Laser%20Sound%20Effect.mp3");
+       sndLasers.play();
+      if(this.EWidth >= this.width){
+      	this.EWidth = this.width;
+        this.overheat = true;
+        this.color = "red";
+      } 
+      this.fired = false;
+    }
+    if(this.EWidth >= 0 && this.EWidth <= this.width){
+    		this.EWidth -= 0.5;
+        if(this.EWidth<0)this.EWidth -= 0;
+    }
+    if(this.EWidth == 0 && this.overheat){
+    		this.overheat = false;
+        this.color = "#00ff9c";
+     }
+  }
+  
+	this.draw = function(){
+  	context.fillStyle = this.color;
+		context.fillText("ENERGY", this.x,this.y);
+		context.fillRect(this.x, this.y, this.EWidth, this.height);
+    context.beginPath();
+		context.lineWidth="6";
+		context.strokeStyle= this.color;
+    context.rect(this.x, this.y, this.width, this.height);
+		context.stroke(); 
+	}
+}
+
+var energybar = new Energy(0, canvas.height - 50, 120,50 ,"#00ff9c");
+
+
+// for single Particle
+function Particle(x, y, radius){
+	this.x = x;
+	this.y = y - radius;
+	this.radius = radius; 
+  this.speed = radius * 10+5;
+  
+  this.reset = function(){
+    	this.x = canvas.width + this.radius;
+      this.y = Math.random() * canvas.height;
+	}
+  
+  this.update = function(){
+  	if(this.x + this.radius > 0 ){
+  		 this.x -= this.speed * 0.3;
+	 	} else {
+			this.reset();
+    }
+  }
+  
+  this.draw = function(){
+    context.fillStyle = "white";
+    context.beginPath();
+    context.arc(this.x, this.y, this.radius, Math.PI*2, false);// false for not counter-clockwise
+    context.stroke();
+    context.fill();
+  }
+}
+
+function particle_system(numParticles){
+	for(var iter=0; iter < numParticles; ++iter){
+  	stars.push(new Particle(Math.random()*canvas.width, Math.random()*canvas.height, 
+    	Math.random()*2));
+  }
+}
+
+function Obstacle(x, y, xSpeed) {
+  this.x = x;
+  this.y = y;
+  this.width = 50 + Math.random() * 50;
+  this.height = this.width;
+  //this.color = color;
+  this.xSpeed = xSpeed;
+  
+  
+  this.alive = true;
+  this.hitpoint = 40;
+  this.sprite = new SpriteSheet(
+  				"https://dl.dropbox.com/s/mfu4kkr5f9uchqg/asteriodspritesheet.png", 
+  				128, 128, 3, 17);
+  this.sprite.startFrame = 2* Math.floor(Math.random()*2) +1;
+  this.sprite.lastFrame = this.sprite.startFrame;
+  this.sprite.width = this.width;
+  this.sprite.height = this.height;
+  this.sprite.x = this.x;         
+  this.sprite.y = this.y;
+  this.sprite.One = true;
+
+  this.draw = function() {
+    this.sprite.draw();
+    //context.fillRect(this.x, this.y, this.width, this.height);
+  };
+
+  this.reset = function() {
+    this.width = 50 + Math.random() * 50;
+    this.height = this.width;
+    this.x = canvas.width;
+    this.y = (canvas.height-this.height) * Math.random();
+    this.hitpoint = 40;
+    this.alive = true;
+    this.sprite.startFrame = 2* Math.floor(Math.random()*2) +1;
+  	this.sprite.lastFrame = this.sprite.startFrame;
+  };
+
+  this.update = function() {
+		this.xSpeed = gspeed;
+    if (this.x+this.width < 0) {
+      this.reset();
+    } else {
+    	if(this.hitpoint <=0){this.alive = false;}
+      this.x -= this.xSpeed;
+  
+  		this.sprite.width = this.width;
+  		this.sprite.height = this.height;
+  		this.sprite.x = this.x;         
+  		this.sprite.y = this.y;
+      this.sprite.update();
+    }
+  };
+}
+
+var obstacles = new Array();
+
+function init_obstacles(numObstacles) {
+  for (var iter = 0; iter < numObstacles; iter++) {
+    obstacles[iter] = new Obstacle(canvas.width + canvas.width/2 * iter, 20 + Math.random() * canvas.height/2, gspeed);
+  }
+}
+
+
+canvas.addEventListener('keydown', handleKeyDown);
+canvas.addEventListener('keyup', handleKeyUp);
+
+function handleKeyDown(eventParams){
+	if(eventParams.keyCode in keyPressed)
+  	keyPressed[eventParams.keyCode]=true;
+}
+
+function handleKeyUp(eventParams){
+	if(eventParams.keyCode in keyPressed)
+  {keyPressed[eventParams.keyCode]=false;}
+	switch(eventParams.keyCode){
+  	case 68: if(started && player.alive && !energybar.overheat){
+    							Lasers.push( new laser());
+                  energybar.fired = true;
+    					}
+              break;
+    case 70:	started = !started; 
+    					if(Over)restart(); 
+              break;
+	}
+}
+
+function restart(){
+	obstacles.splice(0,obstacles.length);
+  Lasers.splice(0,Lasers.length);
+	player.reset(); 
+  Over = false;
+  init_obstacles(6);
+  gspeed = 5;
+  score = 0;
+  energybar.EWidth = 0;
+  energybar.overheat = false;
+  energybar.color = "#00ff9c";
+}
+
+
+
+
+function SpaceShip(x,y,width,height){
+	this.x = x; 
+  this.y = y-height/2;
+  this.width = width;
+  this.height = height;
+  this.alive = true;
+  //this.color = "white";
+  this.image = new Image();
+  this.image.src = "https://dl.dropbox.com/s/oycfif9jih28p51/ship%203.0.png";
+  this.speed = 7;
+  
+  this.thruster = new SpriteSheet("https://dl.dropbox.com/s/ilmd0ifk2pv9776/spritesheet.png", 
+  				124, 107, 2, 6);
+  this.thruster.width = this.width;
+  this.thruster.height = this.height;
+  this.thruster.x = this.x-this.thruster.width/2;         
+  this.thruster.y = this.y;
+  this.thruster.startFrame = 2;
+  this.thruster.lastFrame = 3;
+  
+  this.explode = new SpriteSheet("https://dl.dropbox.com/s/mfu4kkr5f9uchqg/asteriodspritesheet.png", 
+  				128, 128, 3, 17);
+  this.explode.width = this.width;
+  this.explode.height = this.width;  
+  this.explode.startFrame = 6;
+  this.explode.lastFrame = 16;
+  this.explode.One = true;
+  
+  this.reset = function(){
+  	this.x = x; 
+  	this.y = y-height/2;
+  	this.alive = true;
+  	this.thruster.x = this.x-this.thruster.width/2;         
+  	this.thruster.y = this.y;
+ 		this.thruster.startFrame = 2;
+ 	 	this.thruster.lastFrame = 3;
+  	this.explode.startFrame = 6;
+  	this.explode.lastFrame = 16;
+  }
+  
+  this.update = function(){
+ 	 if(this.alive){
+  		this.thruster.startFrame = 2; this.thruster.lastFrame = 3;
+  		if(keyPressed[RIGHT_KEY_CODE]) {
+      	if(!(this.x+this.width >= canvas.width) ){
+      		this.x+=this.speed;
+    			this.thruster.startFrame = 4; 
+          this.thruster.lastFrame = 5;
+        }
+      }
+			if(keyPressed[LEFT_KEY_CODE]) {
+      	if(!(this.x <= 0)){
+          this.x-= this.speed;
+   				this.thruster.startFrame = 0; 
+          this.thruster.lastFrame = 1;
+        }
+      }
+			if(keyPressed[UP_KEY_CODE]) {
+          if(!(this.y <= 0)){
+          		this.y-= this.speed;
+          }
+      }
+			if(keyPressed[DOWN_KEY_CODE]) {
+          if(!(this.y+this.height >= canvas.height)){
+          	this.y+=this.speed;
+          }
+      }
+  	  this.thruster.x = this.x-this.thruster.width/2;
+  	  this.thruster.y = this.y;
+  	  this.thruster.update();
+    } else {
+    	this.explode.x = this.x;         
+ 			this.explode.y = this.y;
+      this.explode.update();
+      if(this.explode.startFrame == this.explode.lastFrame) 
+      	{started = false;	Over = true;}
+    }
+  };
+  
+  this.draw = function(){
+    if(this.alive){
+    	this.thruster.draw();
+    	context.drawImage(this.image, this.x, this.y, this.width, this.height);
+    } else {
+			this.explode.draw();
+    }
+  };
+}
+
+var player = new SpaceShip(100, canvas.height/2,90,42);
+
+function checkCollusion(obj1, obj2){
+	if ((obj1.x + obj1.width < obj2.x) || (obj1.x > obj2.x + obj2.width) || 
+  			(obj1.y + obj1.height < obj2.y) || (obj1.y > obj2.y + obj2.height)){
+  	return false;
+  }
+  return true;
+}
+
+
+function SpriteSheet(url, frameWidth, frameHeight, frameSpeed, endFrame){
+  this.x = 0;
+  this.y = 0;
+  this.startFrame = 0;
+  this.lastFrame = 0;
+  this.width =0;
+  this.height =0;
+  this.One = false; // boolen to check if it is a one time use only animation.
+  this.currentFrame = 0;
+	var image = new Image();
+  var numFrames;
+ // var currentFrame = 0;
+  var counter = 0;
+  image.src = url;
+  
+  image.onload = function(){
+  	numFrames = Math.floor(image.width / frameWidth);
+  }
+  
+  this.update = function(){
+  	if(counter == (frameSpeed - 1)){
+    	++this.currentFrame;
+      if(this.currentFrame > this.lastFrame){
+          if(this.One) this.startFrame = this.lastFrame;
+      		this.currentFrame = this.startFrame;
+      }
+      // = (currentFrame + 1) % endFrame;
+    }
+    counter = (counter + 1) % frameSpeed;
+  }
+ 
+  this.draw = function(x, y){
+  	var row = Math.floor(this.currentFrame / numFrames);
+    var col = Math.floor(this.currentFrame % numFrames);
+    context.drawImage(image, 
+    col*frameWidth, row*frameHeight, frameWidth, frameHeight, 
+    this.x, this.y, this.width, this.height);
+  }
+}
+
+function laser(){
+  this.width = 20;
+  this.height = 10;
+  this.image= new Image();
+  this.x = player.x + player.width; 
+  this.y = player.y + player.height - this.height;
+  this.speed = 10;
+  //this.color = "red";
+  this.image.src = "https://dl.dropbox.com/s/4fna7o441tikox2/laser.png";
+  
+  
+    this.update = function(){
+    	this.x += this.speed;
+  };
+  
+  this.draw = function(){
+  	//context.fillStyle = this.color;
+  	context.drawImage(this.image,this.x, this.y, this.width, this.height);
+  };
+}
+
+var Lasers = new Array();
+
+
+function update() {
+  if(started){
+  	//if(push)
+  	//	force = -3;
+  	//else
+  	 // force = 3;
+   //bossObs.update();
+   for (var iter=0; iter < obstacles.length; ++iter){
+    	if(obstacles[iter].alive && player.alive && checkCollusion(player, obstacles[iter])) {
+     	 	var snd = new Audio("https://dl.dropbox.com/s/o29lbrklq4a572s/exp.mp3");
+        snd.play();
+        snd.currentTime=0;
+        player.alive = false;
+        player.explode.currentFrame = player.explode.startFrame; 
+        break;
+       }
+   }
+ 	 player.update();
+   for (var iter = 0; iter < stars.length; ++iter) {
+    	stars[iter].update();
+  	}
+ 	 for (var iter = 0; iter < obstacles.length; ++iter) {
+ 	   obstacles[iter].update();
+ 	 }
+   // check if the lasers get off screen
+ 	 for (var iter = 0; iter < Lasers.length; ++iter) {
+  	 if(Lasers.length <= 0){break;}
+   	 if(Lasers[iter].x > canvas.width){
+      		Lasers.splice(iter,1);
+          --iter;
+          continue;
+     } 
+     var checked = false;
+     // check if the lasers hit asteroids
+     for (var inneriter=0; inneriter < obstacles.length; ++inneriter){
+    	if(obstacles[inneriter].alive && checkCollusion(Lasers[iter], obstacles[inneriter])){
+        	obstacles[inneriter].hitpoint-=10;
+       	 	// play explodion animation
+       	 if(obstacles[inneriter].hitpoint<=0){
+         	var snd = new Audio("https://dl.dropbox.com/s/o29lbrklq4a572s/exp.mp3");
+          snd.play();
+          obstacles[inneriter].sprite.startFrame = 6;
+          obstacles[inneriter].sprite.lastFrame = 16;
+        	obstacles[inneriter].sprite.currentFrame = obstacles[inneriter].sprite.startFrame;
+        }
+        // else play hit animation
+        else{
+        	var hitsnd = new Audio('https://dl.dropbox.com/s/n3dfmbmnclc02lc/hit.wav');
+          hitsnd.play();
+        	obstacles[inneriter].sprite.startFrame = obstacles[inneriter].sprite.lastFrame - 1;
+        	obstacles[inneriter].sprite.currentFrame = obstacles[inneriter].sprite.startFrame;
+        }
+        Lasers.splice(iter,1);
+        checked = true;
+        break;
+       }
+   		}
+     if(checked) continue;
+     Lasers[iter].update();
+	  }
+ 	 gspeed+= 0.005;
+ 	 score+=1;
+ 	 energybar.update();
+   bgsnd.play();
+  } // end of started
+  if(highscore !== null){ // set highscore
+   if (score > highscore) {
+      localStorage.setItem("highscore", score );
+      }
+	}else{
+      localStorage.setItem("highscore", score );
+	}
+  highscore = localStorage.getItem("highscore");
+  if(!started)bgsnd.pause();
+  if(Over)bgsnd.currentTime = 0;
+}
+
+function draw() {
+  canvas.width = canvas.width;
+  context.fillStyle = "#000000";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  
+  /*
+  // quadratiCurve on top and buttom
+
+  //walls
+  context.beginPath();
+	context.moveTo(0,0);
+	context.quadraticCurveTo(0,40,canvas.width, 0);
+  context.moveTo(0,canvas.height);
+	context.quadraticCurveTo(canvas.width, canvas.height-40,canvas.width, canvas.height);
+  context.fill();
+ */ 
+  for (var iter = 0; iter < stars.length; ++iter) {
+    	stars[iter].draw();
+  }
+  context.fillStyle = "#37FA64";
+  //bossObs.draw();
+  for (var iter = 0; iter < obstacles.length; ++iter) {
+    	obstacles[iter].draw();
+  }
+   for (var iter = 0; iter < Lasers.length; ++iter) {
+    Lasers[iter].draw();
+  }
+  player.draw();
+  if(Over) context.drawImage(cover,0,0,canvas.width,canvas.height);
+  
+  context.fillStyle = "#00ff9c";
+	context.font = "30px Futura";
+	context.fillText("SCORE: " + score, energybar.width + 20, 		canvas.height-10);
+  context.fillText("BEST: " + highscore, energybar.width + 20 + 
+  context.measureText("SCORE: " + score).width+ 20,canvas.height-10);
+  energybar.draw();
+  if(!started && !Over){
+    context.fillStyle = "#00ff9c";
+  	context.font = "100px Futura";
+    context.fillText("PAUSE", canvas.width/2-context.measureText("PAUSE").width/2,canvas.height/2);
+   }
+}
+
+function game_loop() {
+  
+  update();
+  draw();
+
+}
+
+particle_system(400); // create 100 particles
+init_obstacles(30);
+setInterval(game_loop, 30);
+
+}//]]> 
+
+</script>
+
+  
+</head>
+
+<body>
+  <canvas tabindex="0" id="helicopter" width="1200" height="600"></canvas>
+  
+
+
+
+
+</body></html>
